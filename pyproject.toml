@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ledger-ai"
+version = "0.1.0"
+description = "A portable Python library that wraps any AI agent and records all tool calls as a structured, replayable action log."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ledger"]
