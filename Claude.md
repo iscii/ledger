@@ -76,6 +76,16 @@ ledger/
   README.md
   .env.example
 
+## Session start ritual
+Before writing any code each session, always:
+1. git checkout main
+2. git pull origin main  
+3. git checkout -b <descriptive-branch-name> (e.g. day-2-store, 
+   stage-3-inverse-registry)
+
+Name branches after the stage and feature being built.
+Never commit directly to main.
+
 ## Current status
 Day 1 complete. Stage 1 interceptor working for Anthropic tool use.
 Captures tool_use + tool_result, outputs canonical Action JSON to stdout.
