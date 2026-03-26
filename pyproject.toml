@@ -13,7 +13,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    "python-dotenv",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ledger"]
