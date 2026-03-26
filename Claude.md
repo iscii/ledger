@@ -87,7 +87,10 @@ Name branches after the stage and feature being built.
 Never commit directly to main.
 
 ## Current status
-Day 1 complete. Stage 1 interceptor working for Anthropic tool use.
-Captures tool_use + tool_result, outputs canonical Action JSON to stdout.
-Validated zero-config — agent code unchanged between standalone and wrapped runs.
-Next: Stage 2 — persist Actions to SQLite (store.py).
+Day 2 complete. Stage 2 store working.
+- LedgerStore: sqlite3, write/get_session/get_action/list_sessions
+- ledger.session("id", db="path") persists to disk
+- ledger.session("id") stdout-only (default)
+- 16 tests passing, examples/demo.py working
+- python-dotenv added as dev dep
+Next: Stage 3 — inverse registry + rollback engine.
