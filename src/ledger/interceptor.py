@@ -78,12 +78,16 @@ def _active_session() -> LedgerSession | None:
 class LedgerSession:
     """Context manager returned by ``ledger.session(session_id)``."""
 
-    def __init__(self, session_id: str) -> None:
+    def __init__(self, session_id: str, db: str | None = None) -> None:
         self.session_id = session_id
         self.actions: list[Action] = []
         # Maps Anthropic tool_use_id → Action while we await the result
         self._pending: dict[str, Action] = {}
         self._seq = 0
+        self._store = None
+        if db is not None:
+            from ledger.store import LedgerStore  # local import avoids circular dep
+            self._store = LedgerStore(db)
 
     # ------------------------------------------------------------------
     # Internal capture helpers (called from _patched_create)
@@ -106,11 +110,15 @@ class LedgerSession:
             return
         action.result = _normalise_content(content)
         _print_action(action)
+        if self._store is not None:
+            self._store.write(action)
 
     def _flush_pending(self) -> None:
         """Print any tool calls that never received a result (e.g. on error)."""
         for action in list(self._pending.values()):
             _print_action(action)
+            if self._store is not None:
+                self._store.write(action)
         self._pending.clear()
 
     # ------------------------------------------------------------------
@@ -127,6 +135,8 @@ class LedgerSession:
         _get_sessions().remove(self)
         if not _get_sessions():
             _uninstall_patch()
+        if self._store is not None:
+            self._store.close()
         return False  # never suppress exceptions
 
 
