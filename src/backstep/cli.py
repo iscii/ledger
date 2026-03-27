@@ -221,36 +221,35 @@ def diff_cmd(
     session_id_a: str, session_id_b: str, db: Optional[str]
 ) -> None:
     """Compare two sessions action by action."""
+    from backstep.diff import DiffEngine
+
     store = BackstepStore(_resolve_db(db))
-    actions_a = store.get_session(session_id_a)
-    actions_b = store.get_session(session_id_b)
+    engine = DiffEngine(store)
+    result = engine.diff(session_id_a, session_id_b)
     store.close()
 
     click.echo(f"\nDiff: {session_id_a} vs {session_id_b}")
     click.echo("─" * 50)
 
-    if not actions_a and not actions_b:
+    if not result.actions:
         click.echo("  Both sessions are empty.")
     else:
-        for i in range(max(len(actions_a), len(actions_b))):
-            a = actions_a[i] if i < len(actions_a) else None
-            b = actions_b[i] if i < len(actions_b) else None
-
-            if a is None:
-                click.echo(f"  + #{b.seq}  {b.tool:<16} (only in {session_id_b})")
-            elif b is None:
-                click.echo(f"  - #{a.seq}  {a.tool:<16} (only in {session_id_a})")
-            elif a.tool == b.tool and a.args == b.args:
-                click.echo(f"  = #{a.seq}  {a.tool:<16} (same)")
-            elif a.tool != b.tool:
-                click.echo(
-                    f"  ~ #{a.seq}  tool changed: {a.tool} → {b.tool}"
-                )
-            else:
-                click.echo(
-                    f"  ~ #{a.seq}  {a.tool:<16} args changed: "
-                    f"{json.dumps(a.args)} → {json.dumps(b.args)}"
-                )
+        for d in result.actions:
+            if d.kind == "same":
+                click.echo(f"  = #{d.seq}  {d.tool:<16} (same)")
+            elif d.kind == "changed":
+                if "args" in d.changes:
+                    click.echo(
+                        f"  ~ #{d.seq}  {d.tool:<16} args changed: "
+                        f"{json.dumps(d.changes['args']['from'])} → "
+                        f"{json.dumps(d.changes['args']['to'])}"
+                    )
+                else:
+                    click.echo(f"  ~ #{d.seq}  {d.tool:<16} result changed")
+            elif d.kind == "added":
+                click.echo(f"  + #{d.seq}  {d.tool:<16} (only in {session_id_b})")
+            elif d.kind == "removed":
+                click.echo(f"  - #{d.seq}  {d.tool:<16} (only in {session_id_a})")
 
     click.echo("\nLegend: = same  ~ changed  + added  - removed")
 

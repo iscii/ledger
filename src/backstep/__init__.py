@@ -39,6 +39,7 @@ from backstep.store import BackstepStore
 from backstep.registry import InverseRegistry, registry
 from backstep.rollback import RollbackEngine, RollbackResult
 from backstep.tool_registry import ToolRegistry, tool_registry
+from backstep.diff import DiffEngine, DiffResult, ActionDiff
 
 
 def session(session_id: str, db: str | None = None) -> BackstepSession:
@@ -133,4 +134,7 @@ __all__ = [
     "ToolRegistry",
     "RollbackEngine",
     "RollbackResult",
+    "DiffEngine",
+    "DiffResult",
+    "ActionDiff",
 ]
