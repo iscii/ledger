@@ -1,5 +1,5 @@
 """
-backstep — zero-config AI agent action recorder.
+backstep -- zero-config AI agent action recorder.
 
 Usage::
 
@@ -42,31 +42,12 @@ from backstep.tool_registry import ToolRegistry, tool_registry
 
 
 def session(session_id: str, db: str | None = None) -> BackstepSession:
-    """Return a context manager that records all Anthropic tool calls.
-
-    Args:
-        session_id: A unique identifier for this execution session.
-        db:         Path to a SQLite database file.  If ``None`` (default),
-                    Actions are printed to stdout only — nothing is written
-                    to disk.
-
-    Returns:
-        A :class:`~backstep.interceptor.BackstepSession` context manager.
-        On exit, ``session.actions`` holds every captured
-        :class:`~backstep.interceptor.Action`.
-    """
+    """Return a context manager that records all Anthropic tool calls."""
     return BackstepSession(session_id, db=db)
 
 
 def register_inverse(tool_name: str):
-    """Decorator factory — register a function as the inverse for *tool_name*.
-
-    Example::
-
-        @backstep.register_inverse("write_file")
-        def undo_write_file(args: dict, result: dict) -> None:
-            os.remove(args["path"])
-    """
+    """Decorator factory -- register a function as the inverse for *tool_name*."""
     def decorator(fn):
         registry.register(tool_name, fn)
         return fn
@@ -74,20 +55,7 @@ def register_inverse(tool_name: str):
 
 
 def register_tool(tool_name: str):
-    """Decorator factory — register a function as the callable for *tool_name*.
-
-    Registered functions are called during ``backstep replay`` to re-execute
-    tool side-effects without invoking the LLM.  The function receives the
-    original ``action.args`` spread as keyword arguments.
-
-    Example::
-
-        @backstep.register_tool("write_file")
-        def write_file(path: str, content: str) -> str:
-            with open(path, "w") as f:
-                f.write(content)
-            return "ok"
-    """
+    """Decorator factory -- register a callable for replay of *tool_name*."""
     def decorator(fn):
         tool_registry.register(tool_name, fn)
         return fn
@@ -95,22 +63,61 @@ def register_tool(tool_name: str):
 
 
 def committed(tool_name: str):
-    """Decorator factory — mark *tool_name* as irreversible.
-
-    Actions captured for this tool will have ``status='committed'`` and
-    ``reversible=False``.  :class:`~backstep.rollback.RollbackEngine` will
-    skip them.
-
-    Example::
-
-        @backstep.committed("send_email")
-        def send_email_tool(args, result):
-            pass
-    """
+    """Decorator factory -- mark *tool_name* as irreversible."""
     def decorator(fn):
         registry.register_committed(tool_name)
         return fn
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# Plugin loader
+# ---------------------------------------------------------------------------
+
+def _load_plugins() -> None:
+    """Auto-discover and load backstep plugins.
+
+    Phase 1 -- naming convention:
+        Any installed package whose import name starts with ``backstep_``
+        is imported.  Simply importing it is enough -- the package's
+        ``__init__.py`` calls ``backstep.register_inverse()`` etc.
+
+    Phase 2 -- entry points:
+        Packages that declare entry points under the groups
+        ``backstep.inverses``, ``backstep.adapters``, or
+        ``backstep.reporters`` have those entry points loaded and called.
+    """
+    import pkgutil
+    import importlib
+    import warnings
+    from importlib.metadata import entry_points
+
+    # Phase 1: naming convention (backstep_* prefix)
+    for _finder, name, _ispkg in pkgutil.iter_modules():
+        if name.startswith("backstep_"):
+            try:
+                importlib.import_module(name)
+            except Exception as exc:  # noqa: BLE001
+                warnings.warn(
+                    f"Failed to load backstep plugin '{name}': {exc}",
+                    stacklevel=2,
+                )
+
+    # Phase 2: entry points
+    for group in ("backstep.inverses", "backstep.adapters", "backstep.reporters"):
+        for ep in entry_points(group=group):
+            try:
+                ep.load()()
+            except Exception as exc:  # noqa: BLE001
+                warnings.warn(
+                    f"Failed to load backstep entry point '{ep.name}': {exc}",
+                    stacklevel=2,
+                )
+
+
+# Load built-in inverses first, then external plugins.
+from backstep.inverses import files as _files_plugin  # noqa: E402, F401
+_load_plugins()
 
 
 __all__ = [
