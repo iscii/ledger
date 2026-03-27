@@ -105,10 +105,9 @@ Name branches after the stage and feature being built.
 Never commit directly to main.
 
 ## Current status
-Day 5 complete. Plugin system + rollback stress tests.
-- _load_plugins(): naming prefix + entry points ✓
-- src/backstep/inverses/files.py: built-in inverse pack ✓
-- `backstep plugins` CLI command ✓
-- PLUGINS.md: plugin authoring spec ✓
-- 6 stress tests passing ✓
-Next: Stage 5 — diff engine + FastAPI
+Days 6-7 complete. Diff engine + FastAPI.
+- DiffEngine: same/changed/added/removed per action ✓
+- FastAPI: /sessions /diff /rollback /replay /health ✓
+- backstep-api runs on port 7842 ✓
+- 6 diff tests + 7 API tests passing ✓
+Next: Week 2 — Vue 3 UI (session list + action timeline + diff view)
