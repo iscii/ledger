@@ -38,6 +38,7 @@ from backstep.interceptor import BackstepSession
 from backstep.store import BackstepStore
 from backstep.registry import InverseRegistry, registry
 from backstep.rollback import RollbackEngine, RollbackResult
+from backstep.tool_registry import ToolRegistry, tool_registry
 
 
 def session(session_id: str, db: str | None = None) -> BackstepSession:
@@ -72,6 +73,27 @@ def register_inverse(tool_name: str):
     return decorator
 
 
+def register_tool(tool_name: str):
+    """Decorator factory — register a function as the callable for *tool_name*.
+
+    Registered functions are called during ``backstep replay`` to re-execute
+    tool side-effects without invoking the LLM.  The function receives the
+    original ``action.args`` spread as keyword arguments.
+
+    Example::
+
+        @backstep.register_tool("write_file")
+        def write_file(path: str, content: str) -> str:
+            with open(path, "w") as f:
+                f.write(content)
+            return "ok"
+    """
+    def decorator(fn):
+        tool_registry.register(tool_name, fn)
+        return fn
+    return decorator
+
+
 def committed(tool_name: str):
     """Decorator factory — mark *tool_name* as irreversible.
 
@@ -94,11 +116,14 @@ def committed(tool_name: str):
 __all__ = [
     "session",
     "register_inverse",
+    "register_tool",
     "committed",
     "registry",
+    "tool_registry",
     "BackstepSession",
     "BackstepStore",
     "InverseRegistry",
+    "ToolRegistry",
     "RollbackEngine",
     "RollbackResult",
 ]
