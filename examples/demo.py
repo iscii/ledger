@@ -163,7 +163,7 @@ def main() -> None:
     from click.testing import CliRunner
     from backstep.cli import cli as _cli_group
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     def _cli(*args: str) -> None:
         print(f"\n$ backstep {' '.join(args)}")
