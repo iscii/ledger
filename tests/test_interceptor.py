@@ -522,6 +522,302 @@ class TestPersistence:
 
 
 # ---------------------------------------------------------------------------
+# Rollback tests (Stage 3)
+# ---------------------------------------------------------------------------
+
+class TestRollback:
+    """RollbackEngine calls registered inverses in reverse seq order."""
+
+    def test_rollback_removes_written_file(self, tmp_path):
+        """Built-in write_file inverse deletes the file from disk."""
+        from ledger.registry import registry
+        from ledger.rollback import RollbackEngine
+        from ledger.interceptor import Action
+
+        # Simulate the side-effect the agent produced
+        out_file = tmp_path / "out.txt"
+        out_file.write_text("agent summary")
+        assert out_file.exists()
+
+        # Record the corresponding Action in a fresh store
+        store = LedgerStore(str(tmp_path / "rollback.db"))
+        action = Action(
+            session_id="rollback-01",
+            seq=1,
+            tool="write_file",
+            args={"path": str(out_file)},
+            result={"content": "ok"},
+        )
+        store.write(action)
+
+        engine = RollbackEngine(store, registry)
+        result = engine.rollback("rollback-01")
+
+        assert action.id in result.rolled_back
+        assert result.skipped == []
+        assert result.errors == []
+        assert not out_file.exists()
+        store.close()
+
+    def test_rollback_to_seq_only_undoes_later_actions(self, tmp_path):
+        """rollback_to(seq=1) undoes seq>1 and leaves seq<=1 intact."""
+        from ledger.registry import registry
+        from ledger.rollback import RollbackEngine
+        from ledger.interceptor import Action
+
+        file_a = tmp_path / "a.txt"
+        file_b = tmp_path / "b.txt"
+        file_a.write_text("a")
+        file_b.write_text("b")
+
+        store = LedgerStore(str(tmp_path / "rollback_to.db"))
+        action_a = Action(
+            session_id="rollback-02",
+            seq=1,
+            tool="write_file",
+            args={"path": str(file_a)},
+            result={"content": "ok"},
+        )
+        action_b = Action(
+            session_id="rollback-02",
+            seq=2,
+            tool="write_file",
+            args={"path": str(file_b)},
+            result={"content": "ok"},
+        )
+        store.write(action_a)
+        store.write(action_b)
+
+        engine = RollbackEngine(store, registry)
+        result = engine.rollback_to("rollback-02", seq=1)  # only undo seq > 1
+
+        assert action_b.id in result.rolled_back
+        assert action_a.id not in result.rolled_back
+        assert file_a.exists()       # seq=1, kept
+        assert not file_b.exists()   # seq=2, undone
+        store.close()
+
+    def test_inverse_exception_captured_in_errors(self, tmp_path):
+        """A failing inverse adds to errors and does not abort remaining actions."""
+        from ledger.registry import InverseRegistry
+        from ledger.rollback import RollbackEngine
+        from ledger.interceptor import Action
+
+        reg = InverseRegistry()
+
+        boom_calls = []
+        ok_calls = []
+
+        def boom(args, result):
+            boom_calls.append(args)
+            raise RuntimeError("disk full")
+
+        def ok_inverse(args, result):
+            ok_calls.append(args)
+
+        reg.register("boom_tool", boom)
+        reg.register("ok_tool", ok_inverse)
+
+        store = LedgerStore(str(tmp_path / "errors.db"))
+        a1 = Action(session_id="err-01", seq=1, tool="ok_tool", args={}, result={})
+        a2 = Action(session_id="err-01", seq=2, tool="boom_tool", args={}, result={})
+        store.write(a1)
+        store.write(a2)
+
+        engine = RollbackEngine(store, reg)
+        result = engine.rollback("err-01")
+
+        # boom_tool error captured, ok_tool still executed
+        assert a2.id in result.errors
+        assert a1.id in result.rolled_back
+        assert len(ok_calls) == 1
+        store.close()
+
+    def test_no_inverse_skipped_with_warning(self, tmp_path):
+        """Tools with no registered inverse are added to skipped."""
+        from ledger.registry import InverseRegistry
+        from ledger.rollback import RollbackEngine
+        from ledger.interceptor import Action
+        import warnings
+
+        reg = InverseRegistry()  # empty — no inverses
+        store = LedgerStore(str(tmp_path / "skip.db"))
+        action = Action(
+            session_id="skip-01",
+            seq=1,
+            tool="mystery_tool",
+            args={},
+            result={},
+        )
+        store.write(action)
+
+        engine = RollbackEngine(store, reg)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = engine.rollback("skip-01")
+
+        assert action.id in result.skipped
+        assert result.rolled_back == []
+        assert any("mystery_tool" in str(warning.message) for warning in w)
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# Committed tests (Stage 3)
+# ---------------------------------------------------------------------------
+
+# Minimal tool definition for send_email used across committed tests
+_EMAIL_TOOLS = [
+    {
+        "name": "send_email",
+        "description": "Send an email.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string"},
+                "body": {"type": "string"},
+            },
+            "required": ["to", "body"],
+        },
+    }
+]
+
+
+def _email_agent(client: anthropic.Anthropic, prompt: str) -> str:
+    """Minimal agent that uses only the send_email tool."""
+    messages = [{"role": "user", "content": prompt}]
+    while True:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=256,
+            tools=_EMAIL_TOOLS,
+            messages=messages,
+        )
+        if response.stop_reason == "end_turn":
+            return ""
+        tool_results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                tool_results.append(
+                    {"type": "tool_result", "tool_use_id": block.id, "content": "sent"}
+                )
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "user", "content": tool_results})
+
+
+class TestCommitted:
+    """Tools marked via @ledger.committed or registry.register_committed."""
+
+    def test_committed_action_has_correct_fields(self):
+        """Captured Action for a committed tool has status='committed', reversible=False."""
+        # Register via the decorator (as a user would)
+        @ledger.committed("send_email")
+        def _noop(args, result):
+            pass
+
+        responses = [
+            _response(
+                [_tool_use_block("tc_001", "send_email", {"to": "a@b.com", "body": "hi"})],
+                stop_reason="tool_use",
+            ),
+            _response([_text_block("done")]),
+        ]
+        call_idx = [0]
+
+        def mock_create(self_inner, *args, **kwargs):
+            r = responses[call_idx[0]]
+            call_idx[0] += 1
+            return r
+
+        with patch("anthropic.resources.messages.Messages.create", mock_create):
+            client = anthropic.Anthropic(api_key="test-key")
+            with ledger.session("committed-01") as sess:
+                _email_agent(client, "send a hello email")
+
+        assert len(sess.actions) == 1
+        a = sess.actions[0]
+        assert a.tool == "send_email"
+        assert a.status == "committed"
+        assert a.reversible is False
+
+    def test_committed_action_skipped_during_rollback(self, tmp_path):
+        """RollbackEngine skips committed actions and adds them to skipped."""
+        from ledger.registry import registry
+        from ledger.rollback import RollbackEngine
+        from ledger.interceptor import Action
+        import warnings
+
+        # Ensure the global registry knows send_email is committed
+        registry.register_committed("send_email")
+
+        store = LedgerStore(str(tmp_path / "committed.db"))
+        action = Action(
+            session_id="committed-02",
+            seq=1,
+            tool="send_email",
+            args={"to": "a@b.com", "body": "hello"},
+            result={"content": "sent"},
+            status="committed",
+            reversible=False,
+        )
+        store.write(action)
+
+        engine = RollbackEngine(store, registry)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            result = engine.rollback("committed-02")
+
+        assert action.id in result.skipped
+        assert result.rolled_back == []
+        assert result.errors == []
+        store.close()
+
+    def test_committed_mixed_session(self, tmp_path):
+        """In a session with both reversible and committed actions,
+        rollback undoes only the reversible ones."""
+        from ledger.registry import registry
+        from ledger.rollback import RollbackEngine
+        from ledger.interceptor import Action
+        import warnings
+
+        registry.register_committed("send_email")
+
+        out_file = tmp_path / "report.txt"
+        out_file.write_text("report contents")
+
+        store = LedgerStore(str(tmp_path / "mixed.db"))
+
+        write_action = Action(
+            session_id="mixed-01",
+            seq=1,
+            tool="write_file",
+            args={"path": str(out_file)},
+            result={"content": "ok"},
+        )
+        email_action = Action(
+            session_id="mixed-01",
+            seq=2,
+            tool="send_email",
+            args={"to": "x@y.com", "body": "report attached"},
+            result={"content": "sent"},
+            status="committed",
+            reversible=False,
+        )
+        store.write(write_action)
+        store.write(email_action)
+
+        engine = RollbackEngine(store, registry)
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            result = engine.rollback("mixed-01")
+
+        assert write_action.id in result.rolled_back
+        assert email_action.id in result.skipped
+        assert not out_file.exists()
+        store.close()
+
+
+# ---------------------------------------------------------------------------
 # Manual smoke-test (real API key required)
 # ---------------------------------------------------------------------------
 

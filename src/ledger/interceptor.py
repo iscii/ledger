@@ -94,12 +94,18 @@ class LedgerSession:
     # ------------------------------------------------------------------
 
     def _on_tool_call(self, tool_use_id: str, name: str, input_: dict) -> None:
+        # Lazy import to keep interceptor free of hard import-order coupling.
+        from ledger.registry import registry as _registry  # noqa: PLC0415
+
         self._seq += 1
+        is_committed = _registry.is_committed(name)
         action = Action(
             session_id=self.session_id,
             seq=self._seq,
             tool=name,
             args=input_,
+            reversible=not is_committed,
+            status="committed" if is_committed else "ok",
         )
         self._pending[tool_use_id] = action
         self.actions.append(action)
