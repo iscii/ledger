@@ -1,13 +1,13 @@
 """
 tests/test_interceptor.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-Tests for ledger.interceptor.
+Tests for backstep.interceptor.
 
 Structure
 ---------
 1.  ``simple_agent`` — a plain Anthropic agent with three tools
     (read_file, write_file, list_dir).  Written with *no knowledge* of
-    Ledger; the exact code an agent author would write.
+    Backstep; the exact code an agent author would write.
 
 2.  Unit tests that mock ``Messages.create`` at the class level and
     verify the interceptor captures every tool call + result correctly.
@@ -18,8 +18,8 @@ Structure
 Kill-risk check
 ---------------
 The ``simple_agent`` function is called both inside and outside a
-``ledger.session()`` block.  If it requires ANY modification to work
-with Ledger, the design is broken.
+``backstep.session()`` block.  If it requires ANY modification to work
+with Backstep, the design is broken.
 """
 
 from __future__ import annotations
@@ -32,13 +32,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import anthropic
-import ledger
-from ledger.interceptor import Action, LedgerSession, _patched, _patched_create
-from ledger.store import LedgerStore
+import backstep
+from backstep.interceptor import Action, BackstepSession, _patched, _patched_create
+from backstep.store import BackstepStore
 
 
 # ---------------------------------------------------------------------------
-# Test agent — written with zero knowledge of Ledger
+# Test agent — written with zero knowledge of Backstep
 # ---------------------------------------------------------------------------
 
 TOOLS = [
@@ -81,7 +81,7 @@ _FS: dict[str, str] = {
 
 
 def simple_agent(client: anthropic.Anthropic, prompt: str) -> str:
-    """A normal Anthropic agent.  No Ledger imports, no Ledger knowledge."""
+    """A normal Anthropic agent.  No Backstep imports, no Backstep knowledge."""
     messages = [{"role": "user", "content": prompt}]
 
     while True:
@@ -190,7 +190,7 @@ class TestActionSchema:
 class TestInterceptorCapture:
     """Core interception logic."""
 
-    def _run_agent_with_mock_responses(self, responses: list) -> tuple[LedgerSession, list]:
+    def _run_agent_with_mock_responses(self, responses: list) -> tuple[BackstepSession, list]:
         """Run simple_agent against a sequence of mock responses inside a session."""
         call_idx = [0]
 
@@ -201,7 +201,7 @@ class TestInterceptorCapture:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            with ledger.session("test-session") as sess:
+            with backstep.session("test-session") as sess:
                 simple_agent(client, "Read config.txt then write a summary.")
         return sess, sess.actions
 
@@ -282,7 +282,7 @@ class TestInterceptorCapture:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            with ledger.session("multi-tool") as sess:
+            with backstep.session("multi-tool") as sess:
                 simple_agent(client, "Do two things.")
 
         assert len(sess.actions) == 2
@@ -310,8 +310,8 @@ class TestPatchLifecycle:
     """The monkey-patch is installed and removed at the right times."""
 
     def test_patch_installed_inside_session_removed_after(self):
-        from ledger.interceptor import _patched as _p_ref
-        import ledger.interceptor as _mod
+        from backstep.interceptor import _patched as _p_ref
+        import backstep.interceptor as _mod
 
         assert not _mod._patched  # nothing active
 
@@ -323,13 +323,13 @@ class TestPatchLifecycle:
 
         with patch("anthropic.resources.messages.Messages.create", noop_create):
             client = anthropic.Anthropic(api_key="x")
-            with ledger.session("lc-test"):
+            with backstep.session("lc-test"):
                 assert _mod._patched  # installed while inside
 
         assert not _mod._patched  # removed after exit
 
-    def test_agent_works_identically_without_ledger(self):
-        """Zero-change requirement: same agent, same results, no Ledger."""
+    def test_agent_works_identically_without_backstep(self):
+        """Zero-change requirement: same agent, same results, no Backstep."""
         responses = [
             _response(
                 [_tool_use_block("tu_z", "read_file", {"path": "config.txt"})],
@@ -346,13 +346,13 @@ class TestPatchLifecycle:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            # Run WITHOUT Ledger — must work fine
+            # Run WITHOUT Backstep — must work fine
             result = simple_agent(client, "read config")
 
         assert result == "standalone result"
 
     def test_nested_sessions_share_patch(self):
-        import ledger.interceptor as _mod
+        import backstep.interceptor as _mod
 
         call_count = [0]
 
@@ -365,9 +365,9 @@ class TestPatchLifecycle:
 
         with patch("anthropic.resources.messages.Messages.create", noop_create):
             client = anthropic.Anthropic(api_key="x")
-            with ledger.session("outer") as outer:
+            with backstep.session("outer") as outer:
                 assert _mod._patched
-                with ledger.session("inner") as inner:
+                with backstep.session("inner") as inner:
                     assert _mod._patched
                     simple_agent(client, "hi")
                 # patch still active (outer still open)
@@ -380,7 +380,7 @@ class TestPatchLifecycle:
 # Persistence tests (Stage 2)
 # ---------------------------------------------------------------------------
 
-_TEST_DB = "./test_ledger.db"
+_TEST_DB = "./test_backstep.db"
 
 
 class TestPersistence:
@@ -423,11 +423,11 @@ class TestPersistence:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            with ledger.session("persist-01", db=_TEST_DB) as sess:
+            with backstep.session("persist-01", db=_TEST_DB) as sess:
                 simple_agent(client, "List, read, write.")
 
         # Session is over — open the DB independently
-        store = LedgerStore(_TEST_DB)
+        store = BackstepStore(_TEST_DB)
 
         sessions = store.list_sessions()
         assert any(s["session_id"] == "persist-01" for s in sessions)
@@ -462,10 +462,10 @@ class TestPersistence:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            with ledger.session("meta-01", db=_TEST_DB):
+            with backstep.session("meta-01", db=_TEST_DB):
                 simple_agent(client, "List, read, write.")
 
-        store = LedgerStore(_TEST_DB)
+        store = BackstepStore(_TEST_DB)
         sessions = store.list_sessions()
         assert len(sessions) == 1
         s = sessions[0]
@@ -486,10 +486,10 @@ class TestPersistence:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            with ledger.session("id-test", db=_TEST_DB) as sess:
+            with backstep.session("id-test", db=_TEST_DB) as sess:
                 simple_agent(client, "List, read, write.")
 
-        store = LedgerStore(_TEST_DB)
+        store = BackstepStore(_TEST_DB)
         for original in sess.actions:
             fetched = store.get_action(original.id)
             assert fetched is not None
@@ -515,7 +515,7 @@ class TestPersistence:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            with ledger.session("no-db", db=None):
+            with backstep.session("no-db", db=None):
                 simple_agent(client, "read")
 
         assert not os.path.exists(_TEST_DB)
@@ -530,9 +530,9 @@ class TestRollback:
 
     def test_rollback_removes_written_file(self, tmp_path):
         """Built-in write_file inverse deletes the file from disk."""
-        from ledger.registry import registry
-        from ledger.rollback import RollbackEngine
-        from ledger.interceptor import Action
+        from backstep.registry import registry
+        from backstep.rollback import RollbackEngine
+        from backstep.interceptor import Action
 
         # Simulate the side-effect the agent produced
         out_file = tmp_path / "out.txt"
@@ -540,7 +540,7 @@ class TestRollback:
         assert out_file.exists()
 
         # Record the corresponding Action in a fresh store
-        store = LedgerStore(str(tmp_path / "rollback.db"))
+        store = BackstepStore(str(tmp_path / "rollback.db"))
         action = Action(
             session_id="rollback-01",
             seq=1,
@@ -561,16 +561,16 @@ class TestRollback:
 
     def test_rollback_to_seq_only_undoes_later_actions(self, tmp_path):
         """rollback_to(seq=1) undoes seq>1 and leaves seq<=1 intact."""
-        from ledger.registry import registry
-        from ledger.rollback import RollbackEngine
-        from ledger.interceptor import Action
+        from backstep.registry import registry
+        from backstep.rollback import RollbackEngine
+        from backstep.interceptor import Action
 
         file_a = tmp_path / "a.txt"
         file_b = tmp_path / "b.txt"
         file_a.write_text("a")
         file_b.write_text("b")
 
-        store = LedgerStore(str(tmp_path / "rollback_to.db"))
+        store = BackstepStore(str(tmp_path / "rollback_to.db"))
         action_a = Action(
             session_id="rollback-02",
             seq=1,
@@ -599,9 +599,9 @@ class TestRollback:
 
     def test_inverse_exception_captured_in_errors(self, tmp_path):
         """A failing inverse adds to errors and does not abort remaining actions."""
-        from ledger.registry import InverseRegistry
-        from ledger.rollback import RollbackEngine
-        from ledger.interceptor import Action
+        from backstep.registry import InverseRegistry
+        from backstep.rollback import RollbackEngine
+        from backstep.interceptor import Action
 
         reg = InverseRegistry()
 
@@ -618,7 +618,7 @@ class TestRollback:
         reg.register("boom_tool", boom)
         reg.register("ok_tool", ok_inverse)
 
-        store = LedgerStore(str(tmp_path / "errors.db"))
+        store = BackstepStore(str(tmp_path / "errors.db"))
         a1 = Action(session_id="err-01", seq=1, tool="ok_tool", args={}, result={})
         a2 = Action(session_id="err-01", seq=2, tool="boom_tool", args={}, result={})
         store.write(a1)
@@ -635,13 +635,13 @@ class TestRollback:
 
     def test_no_inverse_skipped_with_warning(self, tmp_path):
         """Tools with no registered inverse are added to skipped."""
-        from ledger.registry import InverseRegistry
-        from ledger.rollback import RollbackEngine
-        from ledger.interceptor import Action
+        from backstep.registry import InverseRegistry
+        from backstep.rollback import RollbackEngine
+        from backstep.interceptor import Action
         import warnings
 
         reg = InverseRegistry()  # empty — no inverses
-        store = LedgerStore(str(tmp_path / "skip.db"))
+        store = BackstepStore(str(tmp_path / "skip.db"))
         action = Action(
             session_id="skip-01",
             seq=1,
@@ -706,12 +706,12 @@ def _email_agent(client: anthropic.Anthropic, prompt: str) -> str:
 
 
 class TestCommitted:
-    """Tools marked via @ledger.committed or registry.register_committed."""
+    """Tools marked via @backstep.committed or registry.register_committed."""
 
     def test_committed_action_has_correct_fields(self):
         """Captured Action for a committed tool has status='committed', reversible=False."""
         # Register via the decorator (as a user would)
-        @ledger.committed("send_email")
+        @backstep.committed("send_email")
         def _noop(args, result):
             pass
 
@@ -731,7 +731,7 @@ class TestCommitted:
 
         with patch("anthropic.resources.messages.Messages.create", mock_create):
             client = anthropic.Anthropic(api_key="test-key")
-            with ledger.session("committed-01") as sess:
+            with backstep.session("committed-01") as sess:
                 _email_agent(client, "send a hello email")
 
         assert len(sess.actions) == 1
@@ -742,15 +742,15 @@ class TestCommitted:
 
     def test_committed_action_skipped_during_rollback(self, tmp_path):
         """RollbackEngine skips committed actions and adds them to skipped."""
-        from ledger.registry import registry
-        from ledger.rollback import RollbackEngine
-        from ledger.interceptor import Action
+        from backstep.registry import registry
+        from backstep.rollback import RollbackEngine
+        from backstep.interceptor import Action
         import warnings
 
         # Ensure the global registry knows send_email is committed
         registry.register_committed("send_email")
 
-        store = LedgerStore(str(tmp_path / "committed.db"))
+        store = BackstepStore(str(tmp_path / "committed.db"))
         action = Action(
             session_id="committed-02",
             seq=1,
@@ -775,9 +775,9 @@ class TestCommitted:
     def test_committed_mixed_session(self, tmp_path):
         """In a session with both reversible and committed actions,
         rollback undoes only the reversible ones."""
-        from ledger.registry import registry
-        from ledger.rollback import RollbackEngine
-        from ledger.interceptor import Action
+        from backstep.registry import registry
+        from backstep.rollback import RollbackEngine
+        from backstep.interceptor import Action
         import warnings
 
         registry.register_committed("send_email")
@@ -785,7 +785,7 @@ class TestCommitted:
         out_file = tmp_path / "report.txt"
         out_file.write_text("report contents")
 
-        store = LedgerStore(str(tmp_path / "mixed.db"))
+        store = BackstepStore(str(tmp_path / "mixed.db"))
 
         write_action = Action(
             session_id="mixed-01",
@@ -827,7 +827,7 @@ def _live_demo() -> None:
 
         ANTHROPIC_API_KEY=sk-... python tests/test_interceptor.py
 
-    The agent has NO knowledge of Ledger — the wrapper is applied externally.
+    The agent has NO knowledge of Backstep — the wrapper is applied externally.
     """
     import os
     from dotenv import load_dotenv
@@ -841,19 +841,19 @@ def _live_demo() -> None:
     client = anthropic.Anthropic(api_key=api_key)
 
     print("=" * 60)
-    print("STANDALONE (no Ledger):")
+    print("STANDALONE (no Backstep):")
     print("=" * 60)
     result = simple_agent(client, "List the files, then read config.txt, then write a one-line summary to out.txt.")
     print(f"Agent returned: {result!r}")
 
     print()
     print("=" * 60)
-    print("WRAPPED WITH ledger.session() — zero agent changes:")
+    print("WRAPPED WITH backstep.session() — zero agent changes:")
     print("=" * 60)
     _FS.clear()
     _FS["config.txt"] = "debug=true\nport=8080\n"
 
-    with ledger.session("live-demo-01") as sess:
+    with backstep.session("live-demo-01") as sess:
         result = simple_agent(client, "List the files, then read config.txt, then write a one-line summary to out.txt.")
 
     print(f"\nAgent returned: {result!r}")

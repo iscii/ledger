@@ -1,7 +1,7 @@
 """
 examples/demo.py
 ~~~~~~~~~~~~~~~~
-End-to-end demo of ledger wrapping a simple Anthropic agent.
+End-to-end demo of backstep wrapping a simple Anthropic agent.
 
 Usage:
     uv run python examples/demo.py
@@ -12,13 +12,13 @@ Requires ANTHROPIC_API_KEY in a .env file or the environment.
 import anthropic
 from dotenv import load_dotenv
 
-import ledger
-from ledger.store import LedgerStore
+import backstep
+from backstep.store import BackstepStore
 
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# A plain Anthropic agent — no knowledge of ledger
+# A plain Anthropic agent — no knowledge of backstep
 # ---------------------------------------------------------------------------
 
 TOOLS = [
@@ -102,10 +102,10 @@ if __name__ == "__main__":
     client = anthropic.Anthropic()
 
     print("=" * 60)
-    print("Running agent wrapped with ledger.session(db='demo.db')")
+    print("Running agent wrapped with backstep.session(db='demo.db')")
     print("=" * 60)
 
-    with ledger.session("demo-01", db="./demo.db") as sess:
+    with backstep.session("demo-01", db="./demo.db") as sess:
         result = simple_agent(
             client,
             "List the files, read config.txt, write a one-line summary to out.txt.",
@@ -115,10 +115,10 @@ if __name__ == "__main__":
     print(f"Captured {len(sess.actions)} action(s) in session\n")
 
     print("=" * 60)
-    print("Querying demo.db independently via LedgerStore")
+    print("Querying demo.db independently via BackstepStore")
     print("=" * 60)
 
-    store = LedgerStore("./demo.db")
+    store = BackstepStore("./demo.db")
     print("\nlist_sessions():", store.list_sessions())
     print("\nget_session('demo-01'):")
     for action in store.get_session("demo-01"):
