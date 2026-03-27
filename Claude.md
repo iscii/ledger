@@ -104,13 +104,6 @@ Before writing any code each session, always:
 Name branches after the stage and feature being built.
 Never commit directly to main.
 
-## Current status
-
-Day 3 complete. Project renamed from Ledger to Backstep.
-
-- Stage 1: Anthropic interceptor ✓
-- Stage 2: SQLite store ✓
-- Stage 3: Inverse registry + rollback engine ✓
-- PyPI: backstep claimed ✓
-- GitHub repo: renamed to backstep ✓
-  Next: Stage 4 — CLI (sessions/show/replay/rollback/diff)
+## Current state
+Stages 1–4 complete. Backstep captures, stores, rolls back Actions,
+and has a working CLI. No plugin system exists yet.
