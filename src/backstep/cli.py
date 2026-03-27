@@ -253,3 +253,29 @@ def diff_cmd(
                 )
 
     click.echo("\nLegend: = same  ~ changed  + added  - removed")
+
+
+# ---------------------------------------------------------------------------
+# plugins
+# ---------------------------------------------------------------------------
+
+@cli.command("plugins")
+def plugins_cmd() -> None:
+    """List all loaded inverse plugins and their registered tools."""
+    from backstep.registry import registry as _reg
+
+    registered = _reg.list_registered()  # {tool_name: source_label}
+
+    if not registered:
+        click.echo("No plugins loaded.")
+        return
+
+    # Group by source label
+    by_source: dict[str, list[str]] = {}
+    for tool_name, source in registered.items():
+        by_source.setdefault(source, []).append(tool_name)
+
+    click.echo("Loaded plugins:")
+    for source, tools in sorted(by_source.items()):
+        click.echo(f"  {source}")
+        click.echo(f"    inverses: {', '.join(sorted(tools))}")
