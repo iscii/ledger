@@ -87,10 +87,10 @@ Name branches after the stage and feature being built.
 Never commit directly to main.
 
 ## Current status
-Day 2 complete. Stage 2 store working.
-- LedgerStore: sqlite3, write/get_session/get_action/list_sessions
-- ledger.session("id", db="path") persists to disk
-- ledger.session("id") stdout-only (default)
-- 16 tests passing, examples/demo.py working
-- python-dotenv added as dev dep
-Next: Stage 3 — inverse registry + rollback engine.
+Day 3 complete. Project renamed from Ledger to Backstep.
+- Stage 1: Anthropic interceptor ✓
+- Stage 2: SQLite store ✓  
+- Stage 3: Inverse registry + rollback engine ✓
+- PyPI: backstep claimed ✓
+- GitHub repo: renamed to backstep ✓
+Next: Stage 4 — CLI (sessions/show/replay/rollback/diff)
