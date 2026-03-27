@@ -104,6 +104,11 @@ Before writing any code each session, always:
 Name branches after the stage and feature being built.
 Never commit directly to main.
 
-## Current state
-Stages 1–4 complete. Backstep captures, stores, rolls back Actions,
-and has a working CLI. No plugin system exists yet.
+## Current status
+Day 5 complete. Plugin system + rollback stress tests.
+- _load_plugins(): naming prefix + entry points ✓
+- src/backstep/inverses/files.py: built-in inverse pack ✓
+- `backstep plugins` CLI command ✓
+- PLUGINS.md: plugin authoring spec ✓
+- 6 stress tests passing ✓
+Next: Stage 5 — diff engine + FastAPI
