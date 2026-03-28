@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 backstep = "backstep.cli:cli"
 backstep-api = "backstep.api.main:start"
+backstep-ui = "backstep.api.main:start_with_ui"
 
 [dependency-groups]
 dev = [

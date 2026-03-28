@@ -212,3 +212,19 @@ def start() -> None:
     import uvicorn
     port = int(os.getenv("BACKSTEP_API_PORT", "7842"))
     uvicorn.run("backstep.api.main:app", host="0.0.0.0", port=port, reload=False)
+
+
+def start_with_ui() -> None:
+    """Build the frontend then serve it as static files alongside the API."""
+    import subprocess
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+
+    frontend = Path(__file__).parent.parent.parent.parent / "frontend"
+    dist = frontend / "dist"
+
+    if frontend.exists():
+        subprocess.run(["npm", "run", "build"], cwd=str(frontend), check=True)
+        app.mount("/", StaticFiles(directory=str(dist), html=True), name="static")
+
+    start()
