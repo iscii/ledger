@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { Session, SessionDetail } from './types'
 import { api } from './api'
 import SessionList from './components/SessionList.vue'
 import ActionTimeline from './components/ActionTimeline.vue'
+import DiffView from './components/DiffView.vue'
 
 const sessions = ref<Session[]>([])
 const selectedId = ref<string | null>(null)
 const detail = ref<SessionDetail | null>(null)
 const sessionsLoading = ref(false)
 const detailLoading = ref(false)
+
+// Diff state
+const diffSessionId = ref<string | null>(null)
+const showDiff = computed(() => diffSessionId.value !== null)
+const showPicker = ref(false)
+
+const otherSessions = computed(() =>
+  sessions.value.filter(s => s.session_id !== selectedId.value)
+)
 
 async function loadSessions() {
   sessionsLoading.value = true
@@ -33,6 +43,8 @@ async function loadDetail(id: string) {
 }
 
 watch(selectedId, (id) => {
+  diffSessionId.value = null
+  showPicker.value = false
   if (id) loadDetail(id)
   else detail.value = null
 })
@@ -53,6 +65,16 @@ function onRefresh() {
   loadSessions()
   if (selectedId.value) loadDetail(selectedId.value)
 }
+
+function onPickSession(id: string) {
+  diffSessionId.value = id
+  showPicker.value = false
+}
+
+function closeDiff() {
+  diffSessionId.value = null
+  showPicker.value = false
+}
 </script>
 
 <template>
@@ -68,11 +90,50 @@ function onRefresh() {
         :loading="sessionsLoading"
         @select="onSelect"
       />
-      <ActionTimeline
-        :detail="detail"
-        :loading="detailLoading"
-        @refresh="onRefresh"
-      />
+
+      <div class="right-panel">
+        <!-- Session picker overlay -->
+        <div v-if="showPicker" class="picker-overlay">
+          <div class="picker-header">
+            <span class="picker-title">Pick a session to compare</span>
+            <button class="btn-cancel" @click="showPicker = false">Cancel</button>
+          </div>
+          <div class="picker-list">
+            <div
+              v-for="s in otherSessions"
+              :key="s.session_id"
+              class="picker-row"
+              @click="onPickSession(s.session_id)"
+            >
+              <span class="picker-sid">{{ s.session_id }}</span>
+              <span class="picker-meta">{{ s.action_count }} actions</span>
+            </div>
+            <div v-if="otherSessions.length === 0" class="picker-empty">
+              No other sessions available.
+            </div>
+          </div>
+        </div>
+
+        <!-- Diff view -->
+        <template v-if="showDiff && selectedId">
+          <div class="diff-toolbar">
+            <span class="diff-label">Comparing sessions</span>
+            <button @click="closeDiff">Close diff</button>
+          </div>
+          <DiffView :session-a="selectedId" :session-b="diffSessionId!" />
+        </template>
+
+        <!-- Normal timeline -->
+        <template v-else>
+          <ActionTimeline
+            :detail="detail"
+            :loading="detailLoading"
+            :show-compare="selectedId !== null"
+            @refresh="onRefresh"
+            @compare="showPicker = true"
+          />
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -111,5 +172,94 @@ function onRefresh() {
   flex: 1;
   display: flex;
   overflow: hidden;
+}
+
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Session picker */
+.picker-overlay {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.picker-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.btn-cancel {
+  font-size: 11px;
+  padding: 2px 10px;
+}
+
+.picker-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.picker-row:hover {
+  background: var(--bg-hover);
+}
+
+.picker-sid {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.picker-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.picker-empty {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Diff toolbar */
+.diff-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-panel);
+}
+
+.diff-label {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 </style>

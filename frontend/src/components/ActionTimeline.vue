@@ -4,8 +4,8 @@ import type { SessionDetail, RollbackResult, ReplayResult } from '../types'
 import { api } from '../api'
 import ActionRow from './ActionRow.vue'
 
-const props = defineProps<{ detail: SessionDetail | null; loading: boolean }>()
-const emit = defineEmits<{ refresh: [] }>()
+const props = defineProps<{ detail: SessionDetail | null; loading: boolean; showCompare?: boolean }>()
+const emit = defineEmits<{ refresh: []; compare: [] }>()
 
 const opLoading = ref(false)
 const message = ref<{ kind: 'success' | 'error'; text: string } | null>(null)
@@ -71,6 +71,7 @@ async function runOp(op: () => Promise<RollbackResult | ReplayResult>) {
         </div>
         <div class="header-actions">
           <span v-if="message" class="op-message" :class="message.kind">{{ message.text }}</span>
+          <button v-if="props.showCompare" @click="emit('compare')">Compare</button>
           <button :disabled="opLoading" @click="runOp(() => api.rollback(detail!.session_id))">
             Rollback
           </button>

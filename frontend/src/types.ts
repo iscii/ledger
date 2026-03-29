@@ -35,3 +35,20 @@ export interface ReplayResult {
   replayed: number
   errors: string[]
 }
+
+export type DiffKind = 'same' | 'changed' | 'added' | 'removed'
+
+export interface ActionDiff {
+  kind: DiffKind
+  seq: number
+  tool: string
+  action_a: Action | null
+  action_b: Action | null
+  changes: Record<string, unknown>
+}
+
+export interface DiffResult {
+  session_a: string
+  session_b: string
+  actions: ActionDiff[]
+}
