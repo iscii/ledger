@@ -1,0 +1,10 @@
+{
+  "name": "backstep-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n ui,api -c cyan,yellow \"cd frontend && npm run dev\" \"uv run backstep-api\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
