@@ -1,4 +1,4 @@
-import type { Session, SessionDetail, RollbackResult, ReplayResult } from './types'
+import type { Session, SessionDetail, RollbackResult, ReplayResult, DiffResult } from './types'
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
@@ -30,5 +30,9 @@ export const api = {
     return request<ReplayResult>(`/sessions/${encodeURIComponent(id)}/replay`, {
       method: 'POST',
     })
+  },
+
+  getDiff(sessionA: string, sessionB: string): Promise<DiffResult> {
+    return request<DiffResult>(`/diff/${encodeURIComponent(sessionA)}/${encodeURIComponent(sessionB)}`)
   },
 }
