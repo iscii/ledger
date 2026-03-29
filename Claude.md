@@ -105,10 +105,9 @@ Name branches after the stage and feature being built.
 Never commit directly to main.
 
 ## Current status
-Days 8-9 complete. Vue 3 session log UI.
-- SessionList: browsable, auto-refreshes every 5s ✓
-- ActionTimeline: click to expand args/result ✓
-- StatusBadge: ok/error/committed with colors ✓
-- Rollback + Replay buttons wired to API ✓
-- npm run dev starts both frontend and backend ✓
-Next: Day 10 — visual diff view
+Day 10 complete. Visual diff view.
+- DiffView: same/changed/added/removed with colors ✓
+- Changed fields show old → new values inline ✓
+- Compare button + session picker in App.vue ✓
+- Summary line with counts ✓
+Next: Day 11 — Docker + .env.example
