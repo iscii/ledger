@@ -105,9 +105,10 @@ Name branches after the stage and feature being built.
 Never commit directly to main.
 
 ## Current status
-Days 6-7 complete. Diff engine + FastAPI.
-- DiffEngine: same/changed/added/removed per action ✓
-- FastAPI: /sessions /diff /rollback /replay /health ✓
-- backstep-api runs on port 7842 ✓
-- 6 diff tests + 7 API tests passing ✓
-Next: Week 2 — Vue 3 UI (session list + action timeline + diff view)
+Days 8-9 complete. Vue 3 session log UI.
+- SessionList: browsable, auto-refreshes every 5s ✓
+- ActionTimeline: click to expand args/result ✓
+- StatusBadge: ok/error/committed with colors ✓
+- Rollback + Replay buttons wired to API ✓
+- npm run dev starts both frontend and backend ✓
+Next: Day 10 — visual diff view
