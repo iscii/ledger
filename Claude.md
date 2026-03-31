@@ -105,9 +105,10 @@ Name branches after the stage and feature being built.
 Never commit directly to main.
 
 ## Current status
-Day 10 complete. Visual diff view.
-- DiffView: same/changed/added/removed with colors ✓
-- Changed fields show old → new values inline ✓
-- Compare button + session picker in App.vue ✓
-- Summary line with counts ✓
-Next: Day 11 — Docker + .env.example
+Day 11 complete. Docker + deployment.
+- Dockerfile.backend + Dockerfile.frontend ✓
+- docker-compose.yml with health checks + volume ✓
+- nginx.conf with SPA fallback + API proxy ✓
+- .env.example with all variables documented ✓
+- Makefile for common commands ✓
+Next: Day 12 — README + demo agent
