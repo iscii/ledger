@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    volumes:
+      - backstep_data:/data
+    environment:
+      - BACKSTEP_DB=/data/backstep.db
+      - BACKSTEP_API_PORT=7842
+    env_file:
+      - .env
+    ports:
+      - "7842:7842"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7842/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: http://localhost:7842
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backstep_data:
