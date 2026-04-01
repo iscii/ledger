@@ -8,6 +8,7 @@ import DiffView from './components/DiffView.vue'
 
 const sessions = ref<Session[]>([])
 const selectedId = ref<string | null>(null)
+const dbPath = ref<string | null>(null)
 const detail = ref<SessionDetail | null>(null)
 const sessionsLoading = ref(false)
 const detailLoading = ref(false)
@@ -54,6 +55,7 @@ let timer: ReturnType<typeof setInterval>
 onMounted(() => {
   loadSessions()
   timer = setInterval(loadSessions, 5000)
+  api.getConfig().then(c => { dbPath.value = c.db_path }).catch(() => {})
 })
 onUnmounted(() => clearInterval(timer))
 
@@ -83,6 +85,9 @@ function closeDiff() {
       <span class="logo">⏺ Backstep</span>
       <span class="subtitle">AI agent action log</span>
     </header>
+    <div v-if="dbPath" class="app-footer">
+      <span class="db-path">Connected to: {{ dbPath }}</span>
+    </div>
     <div class="app-body">
       <SessionList
         :sessions="sessions"
@@ -165,6 +170,22 @@ function closeDiff() {
 
 .subtitle {
   font-size: 11px;
+  color: var(--text-muted);
+}
+
+.app-footer {
+  height: 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  flex-shrink: 0;
+  background: var(--bg);
+}
+
+.db-path {
+  font-family: var(--font-mono);
+  font-size: 10px;
   color: var(--text-muted);
 }
 

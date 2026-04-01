@@ -6,7 +6,7 @@ This is the backend consumed by the Vue 3 UI (Stage 6).
 
 Configuration (env vars)
 ------------------------
-  BACKSTEP_DB          Path to SQLite database.  Default: ./backstep.db
+  BACKSTEP_DB          Path to SQLite database.  Default: ~/.backstep/backstep.db
   BACKSTEP_API_PORT    Port to listen on.         Default: 7842
 
 Run
@@ -18,6 +18,7 @@ Run
 Endpoints
 ---------
   GET  /health
+  GET  /config
   GET  /sessions
   GET  /sessions/{session_id}
   GET  /diff/{session_a}/{session_b}
@@ -34,6 +35,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from backstep.config import get_db_path
 from backstep.diff import DiffEngine, DiffResult, ActionDiff
 from backstep.interceptor import Action
 from backstep.registry import registry
@@ -65,8 +67,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 def _db() -> BackstepStore:
-    path = os.getenv("BACKSTEP_DB", "./backstep.db")
-    return BackstepStore(path)
+    return BackstepStore(get_db_path())
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +89,15 @@ def _session_exists(store: BackstepStore, session_id: str) -> bool:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/config")
+def get_config() -> dict[str, Any]:
+    """Return active runtime configuration."""
+    return {
+        "db_path": str(get_db_path()),
+        "api_port": int(os.getenv("BACKSTEP_API_PORT", "7842")),
+    }
 
 
 @app.get("/sessions")

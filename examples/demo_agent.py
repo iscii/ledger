@@ -32,6 +32,7 @@ from dotenv import load_dotenv
 import anthropic
 
 import backstep
+from backstep.config import get_db_path
 
 load_dotenv()
 
@@ -41,7 +42,7 @@ load_dotenv()
 
 ROOT      = Path(__file__).parent.parent
 WORKSPACE = ROOT / "workspace"
-DB_PATH   = str(ROOT / "demo.db")
+DB_PATH   = str(get_db_path())
 
 # ---------------------------------------------------------------------------
 # Tool definitions (passed to the Anthropic API)
@@ -201,6 +202,11 @@ def section(title: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    print(f"Using database: {get_db_path()}")
+    print( "API server should point to the same path.")
+    print( "Start the API with: uv run backstep-api")
+    print()
+
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         print("Error: ANTHROPIC_API_KEY not set.")
