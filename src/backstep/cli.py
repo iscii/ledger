@@ -15,7 +15,7 @@ DB resolution (in priority order)
 ----------------------------------
   1. --db flag on any command
   2. BACKSTEP_DB environment variable
-  3. ~/.backstep/backstep.db (default)
+  3. ./backstep.db (cwd-relative default)
 """
 
 from __future__ import annotations
@@ -35,7 +35,9 @@ from backstep.store import BackstepStore
 
 def _resolve_db(db: Optional[str]) -> str:
     """Return the database path based on priority order."""
-    return db or str(get_db_path())
+    path = db or str(get_db_path())
+    click.echo(f"[backstep] DB: {path}", err=True)
+    return path
 
 
 # ---------------------------------------------------------------------------

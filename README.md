@@ -81,6 +81,9 @@ docker compose up
 uv run python examples/demo_agent.py
 ```
 
+> Run all commands from the project root directory.
+> Backstep stores sessions in `./backstep.db` by default.
+
 The demo creates a small workspace, runs an agent, deletes all files
 to simulate a disaster, replays the session to restore them, then
 diffs two different runs side by side.

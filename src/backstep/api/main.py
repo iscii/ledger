@@ -6,7 +6,7 @@ This is the backend consumed by the Vue 3 UI (Stage 6).
 
 Configuration (env vars)
 ------------------------
-  BACKSTEP_DB          Path to SQLite database.  Default: ~/.backstep/backstep.db
+  BACKSTEP_DB          Path to SQLite database.  Default: ./backstep.db (cwd-relative)
   BACKSTEP_API_PORT    Port to listen on.         Default: 7842
 
 Run
@@ -220,6 +220,7 @@ def _diff_result_dict(r: DiffResult) -> dict[str, Any]:
 
 def start() -> None:
     import uvicorn
+    print(f"[backstep] DB: {get_db_path()}", flush=True)
     port = int(os.getenv("BACKSTEP_API_PORT", "7842"))
     uvicorn.run("backstep.api.main:app", host="0.0.0.0", port=port, reload=False)
 

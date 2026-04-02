@@ -1,4 +1,8 @@
-.PHONY: dev build up down test clean demo demo-with-ui
+.PHONY: dev build up down test clean clean-db demo demo-with-ui api _check_root
+
+_check_root:
+	@test -f pyproject.toml || \
+	  (echo "Error: run from project root" && exit 1)
 
 dev:
 	npm run dev
@@ -15,20 +19,24 @@ down:
 test:
 	uv run pytest tests/
 
-demo:
+api: _check_root
+	uv run backstep-api
+
+demo: _check_root
 	uv run python examples/demo_agent.py
 
-demo-with-ui:
-	@echo "Starting API server in background..."
-	@BACKSTEP_DB=$${BACKSTEP_DB:-$$HOME/.backstep/backstep.db} \
-	  uv run backstep-api &
-	@echo "Running demo agent..."
+demo-with-ui: _check_root
+	@echo "[backstep] Starting API..."
+	@uv run backstep-api &
 	@sleep 1
+	@echo "[backstep] Running demo..."
 	@uv run python examples/demo_agent.py
-	@echo ""
-	@echo "Open http://localhost:3000 to see the session"
 
 clean:
 	docker compose down -v
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -name "*.pyc" -delete
+
+clean-db:
+	rm -f backstep.db demo.db test_ledger.db
+	rm -rf ~/.backstep/
