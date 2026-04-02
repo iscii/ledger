@@ -26,8 +26,8 @@ demo: _check_root
 	uv run python examples/demo_agent.py
 
 demo-with-ui: _check_root
-	@echo "[backstep] Starting API..."
-	@uv run backstep-api &
+	@echo "[backstep] Starting API + UI..."
+	@uv run backstep-ui &
 	@sleep 1
 	@echo "[backstep] Running demo..."
 	@uv run python examples/demo_agent.py
