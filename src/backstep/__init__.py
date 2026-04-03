@@ -37,7 +37,9 @@ Roll back a session::
 from backstep.interceptor import BackstepSession
 from backstep.store import BackstepStore
 from backstep.registry import InverseRegistry, registry
-from backstep.rollback import RollbackEngine, RollbackResult
+from backstep.rollback import RollbackEngine, RollbackResult, FeasibilityResult, ActionFeasibility
+from backstep.replay import ReplayEngine, ReplayResult
+from backstep.deps import DependencyAnalyzer, DependencyViolation
 from backstep.tool_registry import ToolRegistry, tool_registry
 from backstep.diff import DiffEngine, DiffResult, ActionDiff
 
@@ -134,6 +136,12 @@ __all__ = [
     "ToolRegistry",
     "RollbackEngine",
     "RollbackResult",
+    "FeasibilityResult",
+    "ActionFeasibility",
+    "ReplayEngine",
+    "ReplayResult",
+    "DependencyAnalyzer",
+    "DependencyViolation",
     "DiffEngine",
     "DiffResult",
     "ActionDiff",
