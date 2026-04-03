@@ -13,10 +13,20 @@ Usage::
     store = BackstepStore("./backstep.db")
     engine = RollbackEngine(store, registry)
 
+    # Roll back entire session
     result = engine.rollback("session-01")
+
+    # Roll back only specific actions
+    result = engine.rollback("session-01", seqs=[4, 5, 6])
+
     print(result.rolled_back)   # list of action ids that were undone
     print(result.skipped)       # committed / no inverse registered
     print(result.errors)        # inverses that raised exceptions
+
+    # Check feasibility before rolling back
+    feasibility = engine.can_rollback("session-01")
+    print(feasibility.feasible)
+    print(feasibility.actions_that_can_rollback)  # seq numbers
 """
 
 from __future__ import annotations
@@ -34,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Result value object
+# Result value objects
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -50,6 +60,38 @@ class RollbackResult:
     """Action ids whose inverse function raised an exception."""
 
 
+@dataclass
+class ActionFeasibility:
+    """Per-action feasibility detail."""
+
+    seq: int
+    tool: str
+    can_rollback: bool
+    reason: str
+    """Why this action can or cannot be rolled back."""
+
+
+@dataclass
+class FeasibilityResult:
+    """Returned by :meth:`RollbackEngine.can_rollback`."""
+
+    session_id: str
+    feasible: bool
+    """True if at least one action can be rolled back."""
+
+    actions: list[ActionFeasibility] = field(default_factory=list)
+    """Per-action details in reverse seq order (as rollback would process them)."""
+
+    actions_that_can_rollback: list[int] = field(default_factory=list)
+    """Seq numbers of actions that have a registered inverse."""
+
+    actions_that_cannot: list[int] = field(default_factory=list)
+    """Seq numbers of actions that are committed, irreversible, or have no inverse."""
+
+    blocking_committed: list[int] = field(default_factory=list)
+    """Committed action seq numbers within the selected range."""
+
+
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
@@ -61,9 +103,30 @@ class RollbackEngine:
         self._store = store
         self._registry = registry
 
-    def rollback(self, session_id: str) -> RollbackResult:
-        """Roll back *every* action in *session_id* in reverse seq order."""
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def rollback(
+        self,
+        session_id: str,
+        seqs: list[int] | None = None,
+    ) -> RollbackResult:
+        """Roll back actions in *session_id* in reverse seq order.
+
+        Args:
+            session_id: The session to roll back.
+            seqs:       Optional list of seq numbers to target.  If ``None``
+                        (default) every action is processed.  Actions whose
+                        seq is not in *seqs* are silently skipped.
+
+        Returns:
+            :class:`RollbackResult` with ids of rolled-back, skipped, and
+            errored actions.
+        """
         actions = self._store.get_session(session_id)
+        if seqs is not None:
+            actions = [a for a in actions if a.seq in seqs]
         return self._apply(session_id, reversed(actions))
 
     def rollback_to(self, session_id: str, seq: int) -> RollbackResult:
@@ -74,6 +137,74 @@ class RollbackEngine:
         actions = self._store.get_session(session_id)
         to_undo = [a for a in actions if a.seq > seq]
         return self._apply(session_id, reversed(to_undo))
+
+    def can_rollback(
+        self,
+        session_id: str,
+        seqs: list[int] | None = None,
+    ) -> FeasibilityResult:
+        """Return a feasibility report for rolling back *session_id*.
+
+        Args:
+            session_id: The session to inspect.
+            seqs:       Optional seq filter — only inspect these actions.
+
+        Returns:
+            :class:`FeasibilityResult` with per-action rollback status.
+        """
+        all_actions = self._store.get_session(session_id)
+        target = [a for a in all_actions if a.seq in seqs] if seqs is not None else all_actions
+
+        can: list[int] = []
+        cannot: list[int] = []
+        committed_blocking: list[int] = []
+        details: list[ActionFeasibility] = []
+
+        for action in reversed(target):
+            if action.status == "committed":
+                cannot.append(action.seq)
+                committed_blocking.append(action.seq)
+                details.append(ActionFeasibility(
+                    seq=action.seq,
+                    tool=action.tool,
+                    can_rollback=False,
+                    reason="committed — cannot be undone",
+                ))
+            elif not action.reversible:
+                cannot.append(action.seq)
+                details.append(ActionFeasibility(
+                    seq=action.seq,
+                    tool=action.tool,
+                    can_rollback=False,
+                    reason="marked irreversible",
+                ))
+            elif self._registry.get_inverse(action.tool) is None:
+                cannot.append(action.seq)
+                details.append(ActionFeasibility(
+                    seq=action.seq,
+                    tool=action.tool,
+                    can_rollback=False,
+                    reason="no inverse registered — read-only, will skip",
+                ))
+            else:
+                can.append(action.seq)
+                inverse_fn = self._registry.get_inverse(action.tool)
+                inverse_name = getattr(inverse_fn, "__name__", "inverse")
+                details.append(ActionFeasibility(
+                    seq=action.seq,
+                    tool=action.tool,
+                    can_rollback=True,
+                    reason=f"inverse registered ({inverse_name})",
+                ))
+
+        return FeasibilityResult(
+            session_id=session_id,
+            feasible=bool(can),
+            actions=details,
+            actions_that_can_rollback=can,
+            actions_that_cannot=cannot,
+            blocking_committed=committed_blocking,
+        )
 
     # ------------------------------------------------------------------
     # Internal
